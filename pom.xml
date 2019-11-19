@@ -24,6 +24,7 @@
     <module>http-client</module>
     <module>soap-http-client</module>
     <module>connectors-all</module>
+    <module>use-http-client</module>
   </modules>
 
   <dependencyManagement>
