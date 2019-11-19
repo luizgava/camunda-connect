@@ -24,6 +24,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jdk.nashorn.internal.parser.JSONParser;
 import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
@@ -79,11 +82,23 @@ public abstract class AbstractHttpConnector<Q extends HttpBaseRequest<Q, R>, R e
   @Override
   public R execute(Q request) {
     try {
-      HttpPost httpPost = new HttpPost(request.getApiUseall() + "/api/token");
+      String apiUseall = request.getApiUseall();
+      String clientId = request.getClientId();
+      String clientSecret = request.getClientSecret();
+      if (apiUseall == null || apiUseall.isEmpty()) {
+        throw new ClientProtocolException("Api do Useall não informado.");
+      }
+      if (clientId == null || clientId.isEmpty()) {
+        throw new ClientProtocolException("Client ID não informado.");
+      }
+      if (clientSecret == null || clientSecret.isEmpty()) {
+        throw new ClientProtocolException("Client Secret não informado.");
+      }
+      HttpPost httpPost = new HttpPost( apiUseall + "/api/token");
       List<NameValuePair> nvps = new ArrayList<NameValuePair>();
       nvps.add(new BasicNameValuePair("grant_type", "client_credentials"));
-      nvps.add(new BasicNameValuePair("client_id", request.getClientId()));
-      nvps.add(new BasicNameValuePair("client_secret", request.getClientSecret()));
+      nvps.add(new BasicNameValuePair("client_id", clientId));
+      nvps.add(new BasicNameValuePair("client_secret", clientSecret));
       String nomeConexaoUseall = request.getNomeConexaoUseall();
       if (nomeConexaoUseall != null && !nomeConexaoUseall.isEmpty()) {
         nvps.add(new BasicNameValuePair("NomeConexao", nomeConexaoUseall));
@@ -104,7 +119,12 @@ public abstract class AbstractHttpConnector<Q extends HttpBaseRequest<Q, R>, R e
       };
       CloseableHttpClient httpClientToken = HttpClients.createDefault();
       String responseBody = httpClientToken.execute(httpPost, responseHandler);
-
+      RetornoLoginTokenDTO retornoToken = new ObjectMapper()
+              .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+              .readValue(responseBody, RetornoLoginTokenDTO.class);
+      request.header("Authorization", "Bearer " + retornoToken.AccessToken);
+      request.header("UseAuth-Empresa", String.valueOf(retornoToken.CodigoEmpresa));
+      request.header("UseAuth-Filial", String.valueOf(retornoToken.CodigoFilial));
     }
     catch (Exception expToken) {
       throw LOG.unableToExecuteRequest(expToken);
@@ -200,4 +220,19 @@ public abstract class AbstractHttpConnector<Q extends HttpBaseRequest<Q, R>, R e
     return httpRequest instanceof HttpEntityEnclosingRequestBase;
   }
 
+}
+
+class RetornoLoginTokenDTO
+{
+    @JsonProperty("access_token")
+    public String AccessToken;
+
+    @JsonProperty("CodigoUsuario")
+    public int CodigoUsuario;
+
+    @JsonProperty("CodigoEmpresa")
+    public int CodigoEmpresa;
+
+    @JsonProperty("CodigoFilial")
+    public int CodigoFilial;
 }
